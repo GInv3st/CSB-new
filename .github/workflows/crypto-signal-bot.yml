@@ -1,0 +1,56 @@
+name: Crypto Signal Bot - Peak Hours
+
+on:
+  schedule:
+    # Run every 15 minutes during peak trading hours (UTC)
+    # Peak hours: 00:00-02:00, 06:00-10:00, 12:00-16:00, 20:00-23:59
+    - cron: '*/15 0-2,6-10,12-16,20-23 * * *'
+    # Run every 30 minutes during off-peak hours
+    - cron: '*/30 3-5,11,17-19 * * *'
+
+jobs:
+  run-scalping-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create cache directory
+        run: mkdir -p .cache
+
+      - name: Run scalping bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+        run: |
+          echo "🚀 Starting crypto scalping bot..."
+          python start.py
+          echo "✅ Bot execution completed"
+
+      - name: Upload cache artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: bot-cache-${{ github.run_number }}
+          path: .cache/
+          retention-days: 7
