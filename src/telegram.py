@@ -1,15 +1,23 @@
 import asyncio
 from telegram import Bot
+from telegram.error import TelegramError
 
 def emoji(side):
     return "🟢" if side == "LONG" else "🔴"
 
 class TelegramBot:
     def __init__(self, token, chat_id):
-        self.bot = Bot(token)
+        if not token or not chat_id:
+            print("⚠️  Warning: Telegram token or chat_id not provided")
+        self.bot = Bot(token) if token else None
         self.chat_id = chat_id
 
     async def send_signal(self, signal):
+        if not self.bot:
+            print("📤 Mock Telegram send - Signal would be sent:")
+            self._print_signal(signal)
+            return
+            
         msg = (
             f"🚨 <b>NEW SIGNAL</b> 🚨\n"
             f"📊 <b>{signal['symbol']}/{signal['timeframe']}</b>\n"
@@ -25,6 +33,11 @@ class TelegramBot:
         await self._send(msg)
 
     async def send_trade_close(self, trade, exit_info):
+        if not self.bot:
+            print("📤 Mock Telegram send - Trade close would be sent:")
+            print(f"   Trade {trade['slno']} closed: {exit_info['reason']}")
+            return
+            
         profit = exit_info['exit_price'] - trade['entry'] if trade['side'] == 'LONG' else trade['entry'] - exit_info['exit_price']
         profit_emoji = "✅" if profit > 0 else "❌"
         
@@ -40,10 +53,18 @@ class TelegramBot:
         await self._send(msg)
 
     async def send_error(self, err):
+        if not self.bot:
+            print(f"📤 Mock Telegram send - Error would be sent: {err}")
+            return
+            
         msg = f"⚠️ Bot Error:\n<pre>{err}</pre>"
         await self._send(msg)
 
     async def send_status(self, trades):
+        if not self.bot:
+            print(f"📤 Mock Telegram send - Status would be sent: {len(trades)} active trades")
+            return
+            
         if not trades:
             msg = "No active trades."
         else:
@@ -58,7 +79,23 @@ class TelegramBot:
                 )
         await self._send(msg)
 
+    def _print_signal(self, signal):
+        """Print signal details for debugging when no bot token"""
+        print(f"   🚨 NEW SIGNAL 🚨")
+        print(f"   📊 {signal['symbol']}/{signal['timeframe']}")
+        print(f"   📈 Direction: {'BUY' if signal['side'] == 'LONG' else 'SELL'}")
+        print(f"   🎯 Strategy: {signal['strategy']}")
+        print(f"   💰 Entry: {signal['entry']:.2f}")
+        print(f"   🛑 Stop Loss: {signal['sl']:.2f} ({signal['sl_multiplier']:.1f}x ATR)")
+        print(f"   🎯 Targets: {', '.join([f'{tp:.2f} ({m:.1f}x ATR)' for tp, m in zip(signal['tp'], signal['tp_multipliers'])])}")
+        print(f"   ✅ Confidence: {int(round(signal['confidence'] * 100))}%")
+        print(f"   ⚡ Momentum: {signal['momentum_cat']}")
+        print(f"   🔢 SLNO: {signal['slno']}")
+
     async def _send(self, msg, retry=2):
+        if not self.bot:
+            return
+            
         for i in range(retry):
             try:
                 await self.bot.send_message(
@@ -67,8 +104,15 @@ class TelegramBot:
                     parse_mode="HTML",
                     disable_web_page_preview=True
                 )
+                print(f"✅ Telegram message sent successfully")
                 break
-            except Exception as e:
+            except TelegramError as e:
+                print(f"❌ Telegram error (attempt {i+1}): {e}")
                 if i == retry - 1:
-                    print(f"Telegram send failed: {e}")
+                    print(f"❌ Telegram send failed after {retry} attempts")
+                await asyncio.sleep(2)
+            except Exception as e:
+                print(f"❌ Unexpected error sending Telegram message: {e}")
+                if i == retry - 1:
+                    print(f"❌ Telegram send failed: {e}")
                 await asyncio.sleep(2)
