@@ -1,0 +1,18 @@
+2025-07-21 19:43:31,309 - INFO - ✅ Bot is starting...
+2025-07-21 19:43:32,715 - ERROR - ❌ Bot failed to start or run.
+2025-07-21 19:43:32,719 - ERROR - Traceback (most recent call last):
+  File "/workspaces/CSB/extracted_project/start.py", line 18, in <module>
+    from runner import main as run_main
+  File "/workspaces/CSB/extracted_project/runner.py", line 5, in <module>
+    from src.data import fetch_all_datategies, STRATEGY_LIST
+ImportError: cannot import name 'fetch_all_datategies' from 'src.data' (/workspaces/CSB/extracted_project/src/data.py)
+
+2025-07-21 19:47:44,450 - INFO - ✅ Bot is starting...
+2025-07-21 19:47:44,905 - ERROR - ❌ Bot failed to start or run.
+2025-07-21 19:47:44,906 - ERROR - Traceback (most recent call last):
+  File "/workspaces/CSB/extracted_project/start.py", line 18, in <module>
+    from runner import main as run_main
+  File "/workspaces/CSB/extracted_project/runner.py", line 5, in <module>
+    from src.data import fetch_all_datategies, STRATEGY_LIST
+ImportError: cannot import name 'fetch_all_datategies' from 'src.data' (/workspaces/CSB/extracted_project/src/data.py)
+
