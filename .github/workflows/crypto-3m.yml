@@ -1,0 +1,59 @@
+name: Crypto Scalping Bot - 3m Timeframe
+
+on:
+  schedule:
+    # Every 3 minutes during active trading hours
+    - cron: '*/3 * * * *'
+  workflow_dispatch:
+
+jobs:
+  scalp-3m:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Download cache
+        uses: actions/download-artifact@v4
+        with:
+          name: bot-cache-3m
+          path: .cache/
+        continue-on-error: true
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-3m-${{ hashFiles('**/requirements.txt') }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run 3m scalping
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+          TIMEFRAME: "3m"
+          MAX_SIGNALS: "2"  # Limit for high frequency
+        run: |
+          echo "🚀 3m scalping bot starting..."
+          python start.py
+          echo "✅ 3m execution completed"
+
+      - name: Upload cache
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bot-cache-3m
+          path: .cache/
+          retention-days: 7
+          overwrite: true

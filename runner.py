@@ -20,20 +20,36 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
+# Support environment-based timeframe filtering
+TIMEFRAME_FILTER = os.getenv("TIMEFRAME")  # e.g., "3m", "5m", "15m"
+MAX_SIGNALS_OVERRIDE = int(os.getenv("MAX_SIGNALS", "5"))
+
 # Focus on specified pairs for scalping
 SYMBOLS = ["BTCUSDT", "ETHUSDT", "DOGEUSDT"]
 TIMEFRAMES = ["3m", "5m", "15m"]
+
+# Filter timeframes if specified
+if TIMEFRAME_FILTER:
+    TIMEFRAMES = [tf for tf in TIMEFRAMES if tf == TIMEFRAME_FILTER]
+    print(f"🎯 Filtering to timeframe: {TIMEFRAME_FILTER}")
+
 CONFIDENCE_THRESHOLD = 0.65  # Lower for scalping opportunities
-MAX_SIGNALS_PER_RUN = 5  # More signals for scalping
+MAX_SIGNALS_PER_RUN = MAX_SIGNALS_OVERRIDE
 
 async def main():
     # Ensure cache directory exists
     os.makedirs(".cache", exist_ok=True)
     
+    print(f"🚀 Starting bot for timeframes: {TIMEFRAMES}")
+    print(f"📊 Max signals per run: {MAX_SIGNALS_PER_RUN}")
+    
     tg = TelegramBot(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-    signal_cache = SignalCache(".cache/signal_cache.json")
-    trade_cache = TradeCache(".cache/active_trades.json")
-    strategy_history = StrategyHistory(".cache/strategy_history.json")
+    
+    # Use timeframe-specific cache files to avoid conflicts
+    cache_suffix = f"_{TIMEFRAME_FILTER}" if TIMEFRAME_FILTER else ""
+    signal_cache = SignalCache(f".cache/signal_cache{cache_suffix}.json")
+    trade_cache = TradeCache(f".cache/active_trades{cache_suffix}.json")
+    strategy_history = StrategyHistory(f".cache/strategy_history{cache_suffix}.json")
 
     try:
         data = fetch_all_data(SYMBOLS, TIMEFRAMES)
@@ -72,11 +88,15 @@ async def main():
         signals = [s for s in signals if not signal_cache.is_duplicate(s)]
         signals = sorted(signals, key=lambda x: x['confidence'], reverse=True)[:MAX_SIGNALS_PER_RUN]
 
+        print(f"📤 Sending {len(signals)} signals...")
         for signal in signals:
             await tg.send_signal(signal)
             signal_cache.add(signal)
             trade_cache.add(signal)  # Add to active trades
+            
         open_trades = trade_cache.get_all()
+        print(f"📊 Monitoring {len(open_trades)} active trades...")
+        
         for trade in open_trades:
             df = data.get((trade['symbol'], trade['timeframe']))
             if df is None:
@@ -97,8 +117,10 @@ async def main():
                     "profit_pct": (profit / trade['entry']) * 100,
                     "timestamp": int(time.time())
                 })
+                print(f"✅ Trade {trade['slno']} closed: {exit_info['reason']}")
 
     except Exception as e:
         err = traceback.format_exc()
-        await tg.send_error(f"Bot error:\n{err}")
+        await tg.send_error(f"Bot error ({TIMEFRAME_FILTER or 'ALL'}):\n{err}")
         logging.error(f"Bot error:\n{err}")
+        print(f"❌ Error: {err}")
