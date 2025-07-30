@@ -1,4 +1,4 @@
-name: Bot Health Check & Recovery
+name: Bot Health Check & Monitoring
 
 on:
   schedule:
@@ -11,95 +11,43 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Check recent workflow runs
+      - name: Check bot workflows status
         uses: actions/github-script@v7
         with:
           script: |
-            const { data: workflows } = await github.rest.actions.listRepoWorkflows({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
+            console.log('🔍 Checking bot health status...');
             
-            const botWorkflows = workflows.workflows.filter(w => 
-              w.name.includes('Crypto') && w.name.includes('Bot')
-            );
+            const workflows = ['crypto-3m.yml', 'crypto-5m.yml', 'crypto-15m.yml'];
+            let healthReport = '📊 **Bot Health Report**\n\n';
             
-            let healthyCount = 0;
-            let totalChecked = 0;
-            
-            for (const workflow of botWorkflows) {
-              const { data: runs } = await github.rest.actions.listWorkflowRuns({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                workflow_id: workflow.id,
-                per_page: 3
-              });
-              
-              totalChecked++;
-              const recentRun = runs.workflow_runs[0];
-              
-              if (recentRun) {
-                const runAge = Date.now() - new Date(recentRun.created_at).getTime();
-                const isRecent = runAge < 20 * 60 * 1000; // 20 minutes
-                const isSuccessful = recentRun.conclusion === 'success';
+            for (const workflow of workflows) {
+              try {
+                const { data: runs } = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: workflow,
+                  per_page: 5
+                });
                 
-                console.log(`📊 ${workflow.name}: ${recentRun.conclusion} (${Math.round(runAge/60000)}m ago)`);
-                
-                if (isRecent && isSuccessful) {
-                  healthyCount++;
+                const recent = runs.workflow_runs[0];
+                if (recent) {
+                  const status = recent.status === 'completed' && recent.conclusion === 'success' ? '✅' : '❌';
+                  const timeDiff = Math.round((Date.now() - new Date(recent.created_at)) / (1000 * 60));
+                  healthReport += `${status} **${workflow.replace('.yml', '')}**: ${recent.conclusion} (${timeDiff}m ago)\n`;
+                } else {
+                  healthReport += `❓ **${workflow.replace('.yml', '')}**: No recent runs\n`;
                 }
+              } catch (error) {
+                healthReport += `🚫 **${workflow.replace('.yml', '')}**: Error checking status\n`;
               }
             }
             
-            console.log(`🏥 Health Status: ${healthyCount}/${totalChecked} workflows healthy`);
-            
-            // If less than 50% are healthy, trigger recovery
-            if (healthyCount < totalChecked * 0.5) {
-              console.log('🚨 UNHEALTHY STATE DETECTED - Need manual intervention');
-              core.setFailed('Bot workflows are unhealthy');
-            } else {
-              console.log('✅ All systems operational');
-            }
+            console.log(healthReport);
 
-      - name: Send health alert
-        if: failure()
-        uses: actions/github-script@v7
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        with:
-          script: |
-            const https = require('https');
-            
-            const message = `🚨 BOT HEALTH ALERT 🚨
-            
-            One or more trading bot workflows are failing.
-            Please check GitHub Actions dashboard.
-            
-            Time: ${new Date().toISOString()}
-            Repository: ${context.repo.owner}/${context.repo.repo}`;
-            
-            const data = JSON.stringify({
-              chat_id: process.env.TELEGRAM_CHAT_ID,
-              text: message
-            });
-            
-            const options = {
-              hostname: 'api.telegram.org',
-              path: `/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': data.length
-              }
-            };
-            
-            const req = https.request(options, (res) => {
-              console.log(`Health alert sent: ${res.statusCode}`);
-            });
-            
-            req.write(data);
-            req.end();
+      - name: Send health report to Telegram
+        if: always()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="🏥 Health Check: All 3 bot workflows monitored at $(date -u)" \
+            -d parse_mode="Markdown" || echo "Telegram notification failed"

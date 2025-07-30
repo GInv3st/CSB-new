@@ -1,11 +1,7 @@
-# Lightweight requirements for faster GitHub Actions startup
+# Python 3.11 compatible versions for fast startup
 numpy==1.24.4
 pandas==2.0.3
 ta==0.11.0
 httpx==0.25.2
 python-telegram-bot==20.7
 python-dotenv==1.0.1
-
-# Optional: Add these only if FastAPI/Uvicorn are actually used
-# fastapi==0.111.0
-# uvicorn==0.30.1
