@@ -20,11 +20,11 @@ def calculate_confidence(signal, df, winrate):
     if atr_pct < 1.0: score += 0.1
     elif atr_pct < 1.5: score += 0.05
 
-    # Momentum alignment
+    # RSI alignment with signal direction
     from ta.momentum import RSIIndicator
     rsi = RSIIndicator(df['close'], window=14).rsi().iloc[-1]
-    if signal['side'] == 'LONG' and 40 <= rsi <= 60: score += 0.05
-    if signal['side'] == 'SHORT' and 40 <= rsi <= 60: score += 0.05
+    if signal['side'] == 'LONG' and 25 <= rsi <= 55: score += 0.05  # Oversold to neutral
+    if signal['side'] == 'SHORT' and 45 <= rsi <= 75: score += 0.05  # Neutral to overbought
     
     # EMA trend alignment
     from ta.trend import EMAIndicator

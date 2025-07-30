@@ -18,7 +18,6 @@ load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
 # Support environment-based timeframe filtering
 TIMEFRAME_FILTER = os.getenv("TIMEFRAME")  # e.g., "3m", "5m", "15m"

@@ -42,6 +42,7 @@ def check_trade_exit(trade, df):
     tp = trade['tp']
     current_price = float(df['close'].iloc[-1])
     atr = float(df['ATR'].iloc[-1])
+    current_time = int(time.time())
     
     # Check if first TP was hit - if yes, move SL to entry
     first_tp_hit = False
@@ -80,9 +81,11 @@ def check_trade_exit(trade, df):
             if current_price <= t:
                 return {'closed': True, 'reason': f'TP{i+1} Hit', 'exit_price': t}
 
-    # Time-based exit for scalping (close after 20 candles if minimal profit)
-    trade_age = len(df) - trade.get('entry_candle', len(df) - 1)
-    if trade_age >= 20:
+    # Time-based exit for scalping - use actual time, not candle count
+    trade_age_seconds = current_time - trade.get('opened_at', current_time)
+    max_hold_time = 300  # 5 minutes max hold for scalping
+    
+    if trade_age_seconds >= max_hold_time:
         min_profit_atr = 0.3
         if side == 'LONG':
             if current_price >= entry + (atr * min_profit_atr):
