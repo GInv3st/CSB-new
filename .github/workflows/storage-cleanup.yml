@@ -1,0 +1,173 @@
+name: Storage Cleanup & Maintenance
+
+on:
+  schedule:
+    # Run every Sunday at 3 AM UTC (low activity time)
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+jobs:
+  cleanup-storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Clean old workflow artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: artifacts } = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            const now = new Date();
+            const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+            let deletedCount = 0;
+            
+            for (const artifact of artifacts.artifacts) {
+              const artifactAge = now - new Date(artifact.created_at);
+              
+              if (artifactAge > maxAge) {
+                try {
+                  await github.rest.actions.deleteArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: artifact.id
+                  });
+                  console.log(`🗑️ Deleted old artifact: ${artifact.name}`);
+                  deletedCount++;
+                } catch (error) {
+                  console.log(`⚠️ Failed to delete ${artifact.name}: ${error.message}`);
+                }
+              }
+            }
+            
+            console.log(`✅ Cleaned ${deletedCount} old artifacts`);
+
+      - name: Clean workflow runs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: workflows } = await github.rest.actions.listRepoWorkflows({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            let totalCleaned = 0;
+            
+            for (const workflow of workflows.workflows) {
+              const { data: runs } = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: workflow.id,
+                status: 'completed',
+                per_page: 100
+              });
+              
+              // Keep only the 20 most recent runs per workflow
+              const runsToDelete = runs.workflow_runs.slice(20);
+              
+              for (const run of runsToDelete) {
+                try {
+                  await github.rest.actions.deleteWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id
+                  });
+                  totalCleaned++;
+                } catch (error) {
+                  // Ignore errors (might be already deleted or no permission)
+                }
+              }
+            }
+            
+            console.log(`🗑️ Cleaned ${totalCleaned} old workflow runs`);
+
+      - name: Optimize cache artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: artifacts } = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            // Group artifacts by type
+            const cacheArtifacts = artifacts.artifacts.filter(a => 
+              a.name.startsWith('bot-cache-')
+            );
+            
+            // Keep only the 3 most recent cache artifacts per type
+            const artifactTypes = [...new Set(cacheArtifacts.map(a => 
+              a.name.replace(/bot-cache-(.+?)-\d+/, 'bot-cache-$1')
+            ))];
+            
+            let optimizedCount = 0;
+            
+            for (const type of artifactTypes) {
+              const typeArtifacts = cacheArtifacts
+                .filter(a => a.name.includes(type))
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+              
+              // Delete all but the 3 most recent
+              const toDelete = typeArtifacts.slice(3);
+              
+              for (const artifact of toDelete) {
+                try {
+                  await github.rest.actions.deleteArtifact({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    artifact_id: artifact.id
+                  });
+                  optimizedCount++;
+                } catch (error) {
+                  console.log(`⚠️ Failed to delete cache ${artifact.name}`);
+                }
+              }
+            }
+            
+            console.log(`✅ Optimized ${optimizedCount} cache artifacts`);
+
+      - name: Send cleanup report
+        uses: actions/github-script@v7
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        with:
+          script: |
+            const https = require('https');
+            
+            const message = `🧹 WEEKLY STORAGE CLEANUP COMPLETED
+            
+            ✅ Old artifacts cleaned
+            ✅ Workflow runs optimized  
+            ✅ Cache storage maintained
+            
+            Time: ${new Date().toISOString()}
+            All storage limits maintained automatically.`;
+            
+            const data = JSON.stringify({
+              chat_id: process.env.TELEGRAM_CHAT_ID,
+              text: message
+            });
+            
+            const options = {
+              hostname: 'api.telegram.org',
+              path: `/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            };
+            
+            const req = https.request(options, (res) => {
+              console.log(`📊 Cleanup report sent: ${res.statusCode}`);
+            });
+            
+            req.write(data);
+            req.end();

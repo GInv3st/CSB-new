@@ -57,3 +57,38 @@ jobs:
           path: .cache/
           retention-days: 7
           overwrite: true
+
+      # Cleanup old cache artifacts to manage storage
+      - name: Cleanup old cache artifacts
+        if: github.run_number % 4 == 0  # Every 4 runs (1 hour)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: artifacts } = await github.rest.actions.listArtifactsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 50
+            });
+            
+            const oldCaches = artifacts.artifacts
+              .filter(a => a.name === 'bot-cache-15m')
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+              .slice(3); // Keep only 3 most recent
+            
+            let cleanedCount = 0;
+            for (const artifact of oldCaches) {
+              try {
+                await github.rest.actions.deleteArtifact({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  artifact_id: artifact.id
+                });
+                cleanedCount++;
+              } catch (error) {
+                console.log(`Failed to delete artifact: ${error.message}`);
+              }
+            }
+            
+            if (cleanedCount > 0) {
+              console.log(`🗑️ Cleaned ${cleanedCount} old 15m cache artifacts`);
+            }

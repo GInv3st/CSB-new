@@ -10,7 +10,7 @@ from src.strategies import run_all_strategies
 from src.signal_builder import build_signal, check_trade_exit
 from src.confidence import calculate_confidence
 from src.momentum import calculate_momentum, momentum_category
-from src.cache import SignalCache, TradeCache, StrategyHistory
+from src.cache import SignalCache, TradeCache, StrategyHistory, perform_cache_maintenance
 from src.telegram import TelegramBot
 from src.validation import is_valid_signal
 
@@ -37,6 +37,9 @@ CONFIDENCE_THRESHOLD = 0.65  # Lower for scalping opportunities
 MAX_SIGNALS_PER_RUN = MAX_SIGNALS_OVERRIDE
 
 async def main():
+    # Perform cache maintenance at startup
+    perform_cache_maintenance()
+    
     # Ensure cache directory exists
     os.makedirs(".cache", exist_ok=True)
     
@@ -52,6 +55,9 @@ async def main():
     strategy_history = StrategyHistory(f".cache/strategy_history{cache_suffix}.json")
 
     try:
+        # Validate cache sizes before processing
+        print(f"📊 Cache status: Signals={len(signal_cache.cache)}, Trades={len(trade_cache.trades)}")
+        
         data = fetch_all_data(SYMBOLS, TIMEFRAMES)
         signals = []
         for symbol in SYMBOLS:
@@ -118,6 +124,9 @@ async def main():
                     "timestamp": int(time.time())
                 })
                 print(f"✅ Trade {trade['slno']} closed: {exit_info['reason']}")
+
+        # Final cache status
+        print(f"📈 Final cache status: Signals={len(signal_cache.cache)}, Trades={len(trade_cache.trades)}")
 
     except Exception as e:
         err = traceback.format_exc()
