@@ -3,6 +3,7 @@ import sys
 import time
 import traceback
 import logging
+import pandas as pd
 from dotenv import load_dotenv
 
 from src.data import fetch_all_data
@@ -32,7 +33,7 @@ if TIMEFRAME_FILTER:
     TIMEFRAMES = [tf for tf in TIMEFRAMES if tf == TIMEFRAME_FILTER]
     print(f"🎯 Filtering to timeframe: {TIMEFRAME_FILTER}")
 
-CONFIDENCE_THRESHOLD = 0.65  # Lower for scalping opportunities
+CONFIDENCE_THRESHOLD = 0.45  # Lower for more scalping opportunities
 MAX_SIGNALS_PER_RUN = MAX_SIGNALS_OVERRIDE
 
 async def main():
@@ -93,11 +94,54 @@ async def main():
         signals = [s for s in signals if not signal_cache.is_duplicate(s)]
         signals = sorted(signals, key=lambda x: x['confidence'], reverse=True)[:MAX_SIGNALS_PER_RUN]
 
+        # Fallback: If no signals after strict validation, try with lower threshold
+        if len(signals) == 0:
+            print("⚠️ No signals with strict validation, trying lower threshold...")
+            fallback_signals = []
+            for symbol in SYMBOLS:
+                for tf in TIMEFRAMES:
+                    df = data.get((symbol, tf))
+                    if df is None or len(df) < 50:
+                        continue
+                    strategies = run_all_strategies(df)
+                    for strat in strategies:
+                        winrate = strategy_history.winrate(strat['strategy'])
+                        atr_mult = strat['atr_mult']
+                        if winrate >= 0.5:
+                            sl_mult = atr_mult['sl'] * 0.8  # Tighter SL for lower confidence
+                            tp_mult = [m * 0.6 for m in atr_mult['tp']]  # Lower TP for higher success rate
+                        else:
+                            sl_mult = atr_mult['sl']
+                            tp_mult = atr_mult['tp']
+                        signal = build_signal(symbol, tf, df, strat, sl_mult, tp_mult, strategy_history.next_slno())
+                        if signal:
+                            signal['confidence'] = calculate_confidence(signal, df, winrate)
+                            signal['momentum'] = calculate_momentum(df)
+                            signal['momentum_cat'] = momentum_category(signal['momentum'])
+                            # Lower threshold for fallback
+                            if signal['confidence'] > 0.3 and not signal_cache.is_duplicate(signal):
+                                fallback_signals.append(signal)
+                                break  # Take first valid signal per symbol
+            
+            if fallback_signals:
+                signals = sorted(fallback_signals, key=lambda x: x['confidence'], reverse=True)[:2]
+                print(f"✅ Found {len(signals)} fallback signals")
+
         print(f"📤 Sending {len(signals)} signals...")
-        for signal in signals:
-            await tg.send_signal(signal)
-            signal_cache.add(signal)
-            trade_cache.add(signal)  # Add to active trades
+        if len(signals) > 0:
+            for signal in signals:
+                await tg.send_signal(signal)
+                signal_cache.add(signal)
+                trade_cache.add(signal)  # Add to active trades
+        else:
+            # Send status update when no signals
+            status_msg = f"📊 Bot Status ({TIMEFRAME_FILTER or 'ALL'}):\n"
+            status_msg += f"⏰ Time: {time.strftime('%H:%M UTC')}\n"
+            status_msg += f"📈 Pairs checked: {len(SYMBOLS)}\n"
+            status_msg += f"🎯 Strategies analyzed: {sum(len(run_all_strategies(data.get((s, tf), pd.DataFrame()))) for s in SYMBOLS for tf in TIMEFRAMES if data.get((s, tf)) is not None)}\n"
+            status_msg += f"⚠️ No signals met criteria\n"
+            status_msg += f"🔄 Next check in {TIMEFRAMES[0]} minutes"
+            await tg._send(status_msg)
             
         open_trades = trade_cache.get_all()
         print(f"📊 Monitoring {len(open_trades)} active trades...")
