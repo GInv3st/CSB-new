@@ -33,7 +33,7 @@ if TIMEFRAME_FILTER:
     TIMEFRAMES = [tf for tf in TIMEFRAMES if tf == TIMEFRAME_FILTER]
     print(f"🎯 Filtering to timeframe: {TIMEFRAME_FILTER}")
 
-CONFIDENCE_THRESHOLD = 0.45  # Lower for more scalping opportunities
+CONFIDENCE_THRESHOLD = 0.55  # Back to proven working threshold
 MAX_SIGNALS_PER_RUN = MAX_SIGNALS_OVERRIDE
 
 async def main():
@@ -58,7 +58,31 @@ async def main():
         # Validate cache sizes before processing
         print(f"📊 Cache status: Signals={len(signal_cache.cache)}, Trades={len(trade_cache.trades)}")
         
+        print(f"📡 Fetching market data for {SYMBOLS} on {TIMEFRAMES}")
         data = fetch_all_data(SYMBOLS, TIMEFRAMES)
+        
+        if not data:
+            error_msg = f"🚨 CRITICAL: No market data fetched for any pairs!\nSymbols: {SYMBOLS}\nTimeframes: {TIMEFRAMES}\nThis indicates API failures or geo-blocking."
+            print(error_msg)
+            await tg.send_error(error_msg)
+            return
+            
+        # Check how many pairs actually got data
+        successful_pairs = len([k for k, v in data.items() if v is not None])
+        total_pairs = len(SYMBOLS) * len(TIMEFRAMES)
+        
+        if successful_pairs == 0:
+            error_msg = f"🚨 CRITICAL: 0/{total_pairs} pairs got data - All APIs failed!"
+            print(error_msg)
+            await tg.send_error(error_msg)
+            return
+        elif successful_pairs < total_pairs:
+            warning_msg = f"⚠️ Warning: Only {successful_pairs}/{total_pairs} pairs got data"
+            print(warning_msg)
+            await tg._send(warning_msg)
+        else:
+            print(f"✅ Successfully fetched data for all {successful_pairs} pairs")
+            
         signals = []
         for symbol in SYMBOLS:
             for tf in TIMEFRAMES:
