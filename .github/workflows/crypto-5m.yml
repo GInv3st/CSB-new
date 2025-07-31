@@ -6,6 +6,30 @@ on:
     - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * * *'
   workflow_dispatch:
 
+concurrency:
+  group: crypto-bot-5m
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: crypto-bot-5m
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: crypto-bot-5m
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   scalp-5m:
     runs-on: ubuntu-latest

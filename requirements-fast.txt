@@ -1,6 +1,6 @@
-# Python 3.11 compatible versions for fast startup
-numpy==1.24.4
-pandas==2.0.3
+# Python 3.11 compatible versions for fast startup  
+numpy==1.26.4
+pandas==2.2.2
 ta==0.11.0
 httpx==0.25.2
 python-telegram-bot==20.7

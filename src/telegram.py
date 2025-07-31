@@ -10,6 +10,21 @@ class TelegramBot:
         self.bot = Bot(token)
         self.chat_id = chat_id
 
+    async def test_connection(self):
+        """Test Telegram bot connection"""
+        try:
+            # Test bot info
+            bot_info = await self.bot.get_me()
+            # Test send capability
+            await self.bot.send_message(
+                chat_id=self.chat_id,
+                text="🔍 Bot connection test - OK",
+                parse_mode="HTML"
+            )
+            return True
+        except Exception as e:
+            raise Exception(f"Telegram connection failed: {e}")
+
     async def send_signal(self, signal):
         # Calculate risk/reward ratios
         entry = signal['entry']

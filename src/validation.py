@@ -1,5 +1,9 @@
 def is_valid_signal(signal, confidence_threshold):
     """Validate signals for scalping with strict criteria"""
+    # Check for empty or missing TP array
+    if not signal.get('tp') or len(signal['tp']) == 0:
+        return False
+        
     # Minimum confidence threshold
     if signal['confidence'] < confidence_threshold:
         return False
@@ -21,5 +25,14 @@ def is_valid_signal(signal, confidence_threshold):
     tp_pct = (first_tp_distance / signal['entry']) * 100
     if tp_pct < 0.15 or tp_pct > 2.0:  # 0.15% to 2% first TP for scalping
         return False
+    
+    # Ensure all TPs are in correct direction
+    entry = signal['entry']
+    side = signal['side']
+    for i, tp in enumerate(signal['tp']):
+        if side == 'LONG' and tp <= entry:
+            return False  # TP must be above entry for LONG
+        elif side == 'SHORT' and tp >= entry:
+            return False  # TP must be below entry for SHORT
         
     return True

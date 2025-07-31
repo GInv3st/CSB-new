@@ -3,8 +3,26 @@ import sys
 import time
 import traceback
 import logging
+import signal
+import atexit
+import gc
+from datetime import datetime, timezone
 import pandas as pd
 from dotenv import load_dotenv
+
+# Configure logging properly
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s UTC - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Set timezone to UTC globally
+os.environ['TZ'] = 'UTC'
+time.tzset() if hasattr(time, 'tzset') else None
 
 from src.data import fetch_all_data
 from src.strategies import run_all_strategies
@@ -36,6 +54,24 @@ if TIMEFRAME_FILTER:
 CONFIDENCE_THRESHOLD = 0.55  # Back to proven working threshold
 MAX_SIGNALS_PER_RUN = MAX_SIGNALS_OVERRIDE
 
+# Global shutdown flag
+shutdown_requested = False
+
+def signal_handler(signum, frame):
+    global shutdown_requested
+    shutdown_requested = True
+    logger.info(f"Shutdown signal {signum} received. Gracefully shutting down...")
+
+def cleanup_on_exit():
+    """Cleanup function called on exit"""
+    logger.info("Performing cleanup before exit...")
+    gc.collect()  # Force garbage collection
+    
+# Register signal handlers for graceful shutdown
+signal.signal(signal.SIGTERM, signal_handler)
+signal.signal(signal.SIGINT, signal_handler)
+atexit.register(cleanup_on_exit)
+
 async def main():
     # Perform cache maintenance at startup
     perform_cache_maintenance()
@@ -47,6 +83,16 @@ async def main():
     print(f"📊 Max signals per run: {MAX_SIGNALS_PER_RUN}")
     
     tg = TelegramBot(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+    
+    # Test Telegram connection first
+    logger.info("Testing Telegram connection...")
+    try:
+        await tg.test_connection()
+        logger.info("✅ Telegram connection successful")
+    except Exception as e:
+        logger.error(f"❌ Telegram connection failed: {e}")
+        await tg.send_error(f"Bot startup failed - Telegram connection error: {e}")
+        return
     
     # Use timeframe-specific cache files to avoid conflicts
     cache_suffix = f"_{TIMEFRAME_FILTER}" if TIMEFRAME_FILTER else ""
@@ -85,7 +131,13 @@ async def main():
             
         signals = []
         for symbol in SYMBOLS:
+            if shutdown_requested:
+                logger.info("Shutdown requested, stopping signal generation")
+                break
             for tf in TIMEFRAMES:
+                if shutdown_requested:
+                    logger.info("Shutdown requested, stopping timeframe processing")
+                    break
                 df = data.get((symbol, tf))
                 if df is None or len(df) < 100:
                     continue
@@ -157,7 +209,12 @@ async def main():
                 print(f"✅ Trade {trade['slno']} closed: {exit_info['reason']}")
 
         # Final cache status
-        print(f"📈 Final cache status: Signals={len(signal_cache.cache)}, Trades={len(trade_cache.trades)}")
+        logger.info(f"📈 Final cache status: Signals={len(signal_cache.cache)}, Trades={len(trade_cache.trades)}")
+        
+        # Memory cleanup
+        del data
+        gc.collect()
+        logger.info("Memory cleanup completed")
 
     except Exception as e:
         err = traceback.format_exc()
