@@ -5,114 +5,107 @@ from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands
 from src.utils import vwap
 
-# Scalping-focused proven strategies only
+# ONLY proven, standard scalping strategies used by professional traders
 STRATEGY_LIST = [
+    # RSI Mean Reversion - Most popular scalping strategy
     {
-        "name": "RSI Oversold Bounce",
+        "name": "RSI Oversold Scalp",
         "condition": lambda df: (
             RSIIndicator(df['close'], window=14).rsi().iloc[-1] < 30 and
-            df['close'].iloc[-1] > df['open'].iloc[-1] and
-            df['volume'].iloc[-1] > df['volume'].rolling(10).mean().iloc[-1] * 1.2
+            df['close'].iloc[-1] > df['open'].iloc[-1]
         ),
         "side": "LONG",
         "atr_mult": {"sl": 1.0, "tp": [0.8, 1.2, 1.8]}
     },
     {
-        "name": "RSI Overbought Rejection",
+        "name": "RSI Overbought Scalp",
         "condition": lambda df: (
             RSIIndicator(df['close'], window=14).rsi().iloc[-1] > 70 and
-            df['close'].iloc[-1] < df['open'].iloc[-1] and
-            df['volume'].iloc[-1] > df['volume'].rolling(10).mean().iloc[-1] * 1.2
+            df['close'].iloc[-1] < df['open'].iloc[-1]
         ),
         "side": "SHORT",
         "atr_mult": {"sl": 1.0, "tp": [0.8, 1.2, 1.8]}
     },
+    
+    # EMA Crossover - Classic trend following scalp
     {
-        "name": "VWAP Breakout",
+        "name": "EMA Cross Long",
         "condition": lambda df: (
-            df['close'].iloc[-1] > vwap(df) * 1.001 and
-            df['close'].iloc[-2] <= vwap(df) and
-            df['volume'].iloc[-1] > df['volume'].rolling(10).mean().iloc[-1] * 1.5 and
-            df['close'].iloc[-1] > df['high'].rolling(5).max().iloc[-2]
+            EMAIndicator(df['close'], window=9).ema_indicator().iloc[-1] > EMAIndicator(df['close'], window=21).ema_indicator().iloc[-1] and
+            EMAIndicator(df['close'], window=9).ema_indicator().iloc[-2] <= EMAIndicator(df['close'], window=21).ema_indicator().iloc[-2]
         ),
         "side": "LONG",
         "atr_mult": {"sl": 0.8, "tp": [0.6, 1.0, 1.5]}
     },
     {
-        "name": "VWAP Breakdown",
+        "name": "EMA Cross Short",
         "condition": lambda df: (
-            df['close'].iloc[-1] < vwap(df) * 0.999 and
-            df['close'].iloc[-2] >= vwap(df) and
-            df['volume'].iloc[-1] > df['volume'].rolling(10).mean().iloc[-1] * 1.5 and
-            df['close'].iloc[-1] < df['low'].rolling(5).min().iloc[-2]
+            EMAIndicator(df['close'], window=9).ema_indicator().iloc[-1] < EMAIndicator(df['close'], window=21).ema_indicator().iloc[-1] and
+            EMAIndicator(df['close'], window=9).ema_indicator().iloc[-2] >= EMAIndicator(df['close'], window=21).ema_indicator().iloc[-2]
         ),
         "side": "SHORT",
         "atr_mult": {"sl": 0.8, "tp": [0.6, 1.0, 1.5]}
     },
+    
+    # VWAP - Institution level used by all pro scalpers
     {
-        "name": "EMA Scalp Long",
+        "name": "VWAP Breakout Long",
         "condition": lambda df: (
-            EMAIndicator(df['close'], window=5).ema_indicator().iloc[-1] > EMAIndicator(df['close'], window=13).ema_indicator().iloc[-1] and
-            EMAIndicator(df['close'], window=5).ema_indicator().iloc[-2] <= EMAIndicator(df['close'], window=13).ema_indicator().iloc[-2] and
-            df['close'].iloc[-1] > df['open'].iloc[-1] and
-            df['volume'].iloc[-1] > df['volume'].rolling(8).mean().iloc[-1] * 1.3
+            df['close'].iloc[-1] > vwap(df) and
+            df['close'].iloc[-2] <= vwap(df)
+        ),
+        "side": "LONG",
+        "atr_mult": {"sl": 0.7, "tp": [0.5, 0.8, 1.2]}
+    },
+    {
+        "name": "VWAP Breakdown Short",
+        "condition": lambda df: (
+            df['close'].iloc[-1] < vwap(df) and
+            df['close'].iloc[-2] >= vwap(df)
+        ),
+        "side": "SHORT",
+        "atr_mult": {"sl": 0.7, "tp": [0.5, 0.8, 1.2]}
+    },
+    
+    # MACD - Standard momentum scalping
+    {
+        "name": "MACD Bull Cross",
+        "condition": lambda df: (
+            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-1] > 0 and
+            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-2] <= 0
         ),
         "side": "LONG",
         "atr_mult": {"sl": 0.9, "tp": [0.7, 1.1, 1.6]}
     },
     {
-        "name": "EMA Scalp Short",
+        "name": "MACD Bear Cross",
         "condition": lambda df: (
-            EMAIndicator(df['close'], window=5).ema_indicator().iloc[-1] < EMAIndicator(df['close'], window=13).ema_indicator().iloc[-1] and
-            EMAIndicator(df['close'], window=5).ema_indicator().iloc[-2] >= EMAIndicator(df['close'], window=13).ema_indicator().iloc[-2] and
-            df['close'].iloc[-1] < df['open'].iloc[-1] and
-            df['volume'].iloc[-1] > df['volume'].rolling(8).mean().iloc[-1] * 1.3
+            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-1] < 0 and
+            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-2] >= 0
         ),
         "side": "SHORT",
         "atr_mult": {"sl": 0.9, "tp": [0.7, 1.1, 1.6]}
     },
+    
+    # Bollinger Bands - Simple breakout/breakdown only
     {
-        "name": "Bollinger Band Squeeze Long",
+        "name": "BB Breakout Long",
         "condition": lambda df: (
-            (BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_hband() - BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_lband()).iloc[-1] <
-            (BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_hband() - BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_lband()).rolling(10).mean().iloc[-1] * 0.6 and
-            df['close'].iloc[-1] > BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_hband().iloc[-1] and
-            df['volume'].iloc[-1] > df['volume'].rolling(10).mean().iloc[-1] * 1.4
+            df['close'].iloc[-1] > BollingerBands(df['close'], window=20, window_dev=2).bollinger_hband().iloc[-1] and
+            df['close'].iloc[-2] <= BollingerBands(df['close'], window=20, window_dev=2).bollinger_hband().iloc[-2]
         ),
         "side": "LONG",
-        "atr_mult": {"sl": 1.1, "tp": [0.9, 1.4, 2.0]}
+        "atr_mult": {"sl": 1.0, "tp": [0.8, 1.3, 2.0]}
     },
     {
-        "name": "Bollinger Band Squeeze Short",
+        "name": "BB Breakdown Short",
         "condition": lambda df: (
-            (BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_hband() - BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_lband()).iloc[-1] <
-            (BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_hband() - BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_lband()).rolling(10).mean().iloc[-1] * 0.6 and
-            df['close'].iloc[-1] < BollingerBands(df['close'], window=15, window_dev=1.8).bollinger_lband().iloc[-1] and
-            df['volume'].iloc[-1] > df['volume'].rolling(10).mean().iloc[-1] * 1.4
+            df['close'].iloc[-1] < BollingerBands(df['close'], window=20, window_dev=2).bollinger_lband().iloc[-1] and
+            df['close'].iloc[-2] >= BollingerBands(df['close'], window=20, window_dev=2).bollinger_lband().iloc[-2]
         ),
         "side": "SHORT",
-        "atr_mult": {"sl": 1.1, "tp": [0.9, 1.4, 2.0]}
-    },
-    {
-        "name": "MACD Scalp Long",
-        "condition": lambda df: (
-            MACD(df['close'], window_fast=8, window_slow=17).macd_diff().iloc[-1] > 0 and
-            MACD(df['close'], window_fast=8, window_slow=17).macd_diff().iloc[-2] <= 0 and
-            df['volume'].iloc[-1] > df['volume'].rolling(10).mean().iloc[-1] * 1.2
-        ),
-        "side": "LONG",
-        "atr_mult": {"sl": 0.8, "tp": [0.6, 1.0, 1.4]}
-    },
-    {
-        "name": "MACD Scalp Short",
-        "condition": lambda df: (
-            MACD(df['close'], window_fast=8, window_slow=17).macd_diff().iloc[-1] < 0 and
-            MACD(df['close'], window_fast=8, window_slow=17).macd_diff().iloc[-2] >= 0 and
-            df['volume'].iloc[-1] > df['volume'].rolling(10).mean().iloc[-1] * 1.2
-        ),
-        "side": "SHORT",
-        "atr_mult": {"sl": 0.8, "tp": [0.6, 1.0, 1.4]}
-    },
+        "atr_mult": {"sl": 1.0, "tp": [0.8, 1.3, 2.0]}
+    }
 ]
 
 def run_all_strategies(df):
