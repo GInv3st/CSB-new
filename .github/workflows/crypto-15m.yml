@@ -60,7 +60,7 @@ jobs:
           TIMEFRAME: "15m"
           MAX_SIGNALS: "5"
         run: |
-          timeout 660s python runner.py || echo "Timeout reached - normal for 15m scalping"
+          timeout 660s python3 runner.py || echo "Timeout reached - normal for 15m scalping"
 
       - name: Cleanup old cache
         run: |

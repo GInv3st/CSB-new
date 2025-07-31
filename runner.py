@@ -141,8 +141,38 @@ async def main():
                 df = data.get((symbol, tf))
                 if df is None or len(df) < 100:
                     continue
+                    
+                # CRITICAL FIX: Determine market direction first
+                price_change_5 = ((df['close'].iloc[-1] - df['close'].iloc[-5]) / df['close'].iloc[-5]) * 100
+                price_change_10 = ((df['close'].iloc[-1] - df['close'].iloc[-10]) / df['close'].iloc[-10]) * 100
+                
+                # Determine dominant market direction
+                if price_change_5 > 0.05 and price_change_10 > 0.1:
+                    market_direction = "BULLISH"
+                elif price_change_5 < -0.05 and price_change_10 < -0.1:
+                    market_direction = "BEARISH"
+                else:
+                    market_direction = "NEUTRAL"
+                
+                logger.info(f"{symbol} {tf}: Market direction = {market_direction}")
+                
                 strat_results = run_all_strategies(df)
+                
+                # CRITICAL FIX: Filter strategies by market direction
+                filtered_strategies = []
                 for strat in strat_results:
+                    if market_direction == "BULLISH" and strat['side'] == "LONG":
+                        filtered_strategies.append(strat)
+                    elif market_direction == "BEARISH" and strat['side'] == "SHORT":
+                        filtered_strategies.append(strat)
+                    elif market_direction == "NEUTRAL":
+                        # In neutral market, take the strongest signal only
+                        filtered_strategies.append(strat)
+                        break  # Only one signal in neutral market
+                
+                logger.info(f"{symbol} {tf}: {len(strat_results)} strategies triggered, {len(filtered_strategies)} after direction filter")
+                
+                for strat in filtered_strategies:
                     # Historical learning: get ATR multipliers for this strategy
                     hist = strategy_history.get(strat['strategy'])
                     winrate = strategy_history.winrate(strat['strategy'])

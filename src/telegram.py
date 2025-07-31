@@ -71,15 +71,15 @@ class TelegramBot:
             f"   Signal Strength: {signal.get('momentum', 50):.1f}%\n"
             f"   Final Confidence: {confidence_pct:.1f}%\n"
             f"   Level: {level}\n"
-            f"   Volatility: NORMAL\n"
+            f"   Volatility: {signal.get('volatility', 'CALCULATED')}\n"
             f"   ATR: ${signal.get('atr_value', 0):.6f}\n\n"
             f"🎪 Strategy: {signal['strategy'].upper().replace(' ', '_')}\n"
             f"🔍 Signal ID: {signal['symbol'][:3]}{signal['slno']}\n"
             f"💡 {level} SIGNAL - {'High' if level == 'HIGH' else 'Acceptable'} risk/reward\n"
             f"⏰ Time: {time.strftime('%H:%M:%S')}\n\n"
-            f"🤖 100% LOGICAL ANALYSIS\n"
-            f"📊 Data: 200 candles\n"
-            f"🚀 NO RANDOM ELEMENTS!"
+            f"🤖 MARKET ANALYSIS\n"
+            f"📊 Data: {signal.get('candle_count', 200)} candles\n"
+            f"🚀 STRATEGY: {signal['strategy']}"
         )
         
         await self._send(msg)

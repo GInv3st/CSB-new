@@ -18,6 +18,9 @@ def build_signal(symbol, tf, df, strat, sl_mult, tp_mult, slno):
             sl = entry + atr * sl_mult
             tp = [entry - atr * m for m in tp_mult]
 
+        # Calculate volatility based on ATR
+        volatility = "LOW" if atr/entry < 0.005 else "HIGH" if atr/entry > 0.02 else "NORMAL"
+        
         return {
             'slno': slno,
             'symbol': symbol,
@@ -28,7 +31,9 @@ def build_signal(symbol, tf, df, strat, sl_mult, tp_mult, slno):
             'sl_multiplier': sl_mult,
             'tp': [round(x, 2) for x in tp],
             'tp_multipliers': tp_mult,
-            'atr_value': round(atr, 6),  # Include ATR value for analysis
+            'atr_value': round(atr, 6),
+            'volatility': volatility,
+            'candle_count': len(df),  # Real candle count
             'strategy': strat['strategy'],
             'opened_at': int(time.time()),
             'entry_candle': len(df) - 1
