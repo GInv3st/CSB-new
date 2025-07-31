@@ -118,38 +118,71 @@ async def main():
         signals = [s for s in signals if not signal_cache.is_duplicate(s)]
         signals = sorted(signals, key=lambda x: x['confidence'], reverse=True)[:MAX_SIGNALS_PER_RUN]
 
-        # Fallback: If no signals after strict validation, try with lower threshold
+        # FORCE SIGNALS: If no strategies trigger, create forced scalping signals
         if len(signals) == 0:
-            print("⚠️ No signals with strict validation, trying lower threshold...")
-            fallback_signals = []
+            print("🚨 NO STRATEGIES TRIGGERED - FORCING SCALPING SIGNALS")
+            forced_signals = []
+            
             for symbol in SYMBOLS:
                 for tf in TIMEFRAMES:
                     df = data.get((symbol, tf))
                     if df is None or len(df) < 50:
                         continue
-                    strategies = run_all_strategies(df)
-                    for strat in strategies:
-                        winrate = strategy_history.winrate(strat['strategy'])
-                        atr_mult = strat['atr_mult']
-                        if winrate >= 0.5:
-                            sl_mult = atr_mult['sl'] * 0.8  # Tighter SL for lower confidence
-                            tp_mult = [m * 0.6 for m in atr_mult['tp']]  # Lower TP for higher success rate
-                        else:
-                            sl_mult = atr_mult['sl']
-                            tp_mult = atr_mult['tp']
-                        signal = build_signal(symbol, tf, df, strat, sl_mult, tp_mult, strategy_history.next_slno())
-                        if signal:
-                            signal['confidence'] = calculate_confidence(signal, df, winrate)
-                            signal['momentum'] = calculate_momentum(df)
-                            signal['momentum_cat'] = momentum_category(signal['momentum'])
-                            # Lower threshold for fallback
-                            if signal['confidence'] > 0.3 and not signal_cache.is_duplicate(signal):
-                                fallback_signals.append(signal)
-                                break  # Take first valid signal per symbol
+                        
+                    print(f"🔧 Forcing signal for {symbol} {tf}")
+                    
+                    # Calculate price movement for direction
+                    price = df['close'].iloc[-1]
+                    price_change = ((df['close'].iloc[-1] - df['close'].iloc[-5]) / df['close'].iloc[-5]) * 100
+                    
+                    # Force direction based on recent movement
+                    if price_change > 0.01:  # Any upward movement
+                        side = "LONG"
+                        strategy_name = "Forced Scalp Long"
+                    else:
+                        side = "SHORT" 
+                        strategy_name = "Forced Scalp Short"
+                    
+                    # Calculate simple levels using ATR
+                    atr = df['high'].rolling(14).max() - df['low'].rolling(14).min()
+                    atr_value = atr.iloc[-1] * 0.01  # 1% ATR
+                    
+                    entry = price
+                    if side == "LONG":
+                        sl = entry - atr_value
+                        tp = [entry + (atr_value * 0.8), entry + (atr_value * 1.2)]
+                    else:
+                        sl = entry + atr_value
+                        tp = [entry - (atr_value * 0.8), entry - (atr_value * 1.2)]
+                    
+                    # Create forced signal
+                    forced_signal = {
+                        'symbol': symbol,
+                        'timeframe': tf,
+                        'side': side,
+                        'strategy': strategy_name,
+                        'entry': entry,
+                        'sl': sl,
+                        'tp': tp,
+                        'sl_multiplier': 1.0,
+                        'tp_multipliers': [0.8, 1.2],
+                        'confidence': 0.75,  # Fixed confidence for forced signals
+                        'momentum': 50.0,
+                        'momentum_cat': 'ACTIVE',
+                        'slno': strategy_history.next_slno(),
+                        'opened_at': int(time.time())
+                    }
+                    
+                    # Check for duplicates
+                    if not signal_cache.is_duplicate(forced_signal):
+                        forced_signals.append(forced_signal)
+                        print(f"✅ Created forced {side} signal for {symbol}")
+                    else:
+                        print(f"🔄 Forced signal for {symbol} is duplicate")
             
-            if fallback_signals:
-                signals = sorted(fallback_signals, key=lambda x: x['confidence'], reverse=True)[:2]
-                print(f"✅ Found {len(signals)} fallback signals")
+            if forced_signals:
+                signals = forced_signals[:3]  # Limit to 3 forced signals
+                print(f"🚨 FORCING {len(signals)} SIGNALS - Bot will send these to Telegram")
 
         print(f"📤 Sending {len(signals)} signals...")
         if len(signals) > 0:
@@ -158,14 +191,8 @@ async def main():
                 signal_cache.add(signal)
                 trade_cache.add(signal)  # Add to active trades
         else:
-            # Send status update when no signals
-            status_msg = f"📊 Bot Status ({TIMEFRAME_FILTER or 'ALL'}):\n"
-            status_msg += f"⏰ Time: {time.strftime('%H:%M UTC')}\n"
-            status_msg += f"📈 Pairs checked: {len(SYMBOLS)}\n"
-            status_msg += f"🎯 Strategies analyzed: {sum(len(run_all_strategies(data.get((s, tf), pd.DataFrame()))) for s in SYMBOLS for tf in TIMEFRAMES if data.get((s, tf)) is not None)}\n"
-            status_msg += f"⚠️ No signals met criteria\n"
-            status_msg += f"🔄 Next check in {TIMEFRAMES[0]} minutes"
-            await tg._send(status_msg)
+            # This should never happen now since we force signals
+            await tg._send(f"⚠️ Bot Status ({TIMEFRAME_FILTER or 'ALL'}): No signals generated at {time.strftime('%H:%M UTC')}")
             
         open_trades = trade_cache.get_all()
         print(f"📊 Monitoring {len(open_trades)} active trades...")
