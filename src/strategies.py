@@ -11,7 +11,7 @@ STRATEGY_LIST = [
     {
         "name": "RSI Oversold Scalp",
         "condition": lambda df: (
-            RSIIndicator(df['close'], window=14).rsi().iloc[-1] < 35  # More sensitive
+            RSIIndicator(df['close'], window=14).rsi().iloc[-1] < 45  # Much more sensitive for scalping
         ),
         "side": "LONG",
         "atr_mult": {"sl": 1.0, "tp": [0.8, 1.2, 1.8]}
@@ -19,90 +19,92 @@ STRATEGY_LIST = [
     {
         "name": "RSI Overbought Scalp",
         "condition": lambda df: (
-            RSIIndicator(df['close'], window=14).rsi().iloc[-1] > 65  # More sensitive
+            RSIIndicator(df['close'], window=14).rsi().iloc[-1] > 55  # Much more sensitive for scalping
         ),
         "side": "SHORT",
         "atr_mult": {"sl": 1.0, "tp": [0.8, 1.2, 1.8]}
     },
     
-    # EMA Crossover - Classic trend following scalp
+    # EMA Trend - Simplified trend following 
     {
-        "name": "EMA Cross Long",
+        "name": "EMA Trend Long",
         "condition": lambda df: (
             EMAIndicator(df['close'], window=9).ema_indicator().iloc[-1] > EMAIndicator(df['close'], window=21).ema_indicator().iloc[-1] and
-            EMAIndicator(df['close'], window=9).ema_indicator().iloc[-2] <= EMAIndicator(df['close'], window=21).ema_indicator().iloc[-2]
+            df['close'].iloc[-1] > df['close'].iloc[-2]  # Price moving up
         ),
         "side": "LONG",
         "atr_mult": {"sl": 0.8, "tp": [0.6, 1.0, 1.5]}
     },
     {
-        "name": "EMA Cross Short",
+        "name": "EMA Trend Short",
         "condition": lambda df: (
             EMAIndicator(df['close'], window=9).ema_indicator().iloc[-1] < EMAIndicator(df['close'], window=21).ema_indicator().iloc[-1] and
-            EMAIndicator(df['close'], window=9).ema_indicator().iloc[-2] >= EMAIndicator(df['close'], window=21).ema_indicator().iloc[-2]
+            df['close'].iloc[-1] < df['close'].iloc[-2]  # Price moving down
         ),
         "side": "SHORT",
         "atr_mult": {"sl": 0.8, "tp": [0.6, 1.0, 1.5]}
     },
     
-    # VWAP - Institution level used by all pro scalpers
+    # VWAP - Simplified price action around VWAP
     {
-        "name": "VWAP Breakout Long",
+        "name": "VWAP Long",
         "condition": lambda df: (
-            df['close'].iloc[-1] > vwap(df) and
-            df['close'].iloc[-2] <= vwap(df)
+            df['close'].iloc[-1] > vwap(df) and  # Price above VWAP
+            df['close'].iloc[-1] > df['open'].iloc[-1]  # Green candle
         ),
         "side": "LONG",
         "atr_mult": {"sl": 0.7, "tp": [0.5, 0.8, 1.2]}
     },
     {
-        "name": "VWAP Breakdown Short",
+        "name": "VWAP Short",
         "condition": lambda df: (
-            df['close'].iloc[-1] < vwap(df) and
-            df['close'].iloc[-2] >= vwap(df)
+            df['close'].iloc[-1] < vwap(df) and  # Price below VWAP
+            df['close'].iloc[-1] < df['open'].iloc[-1]  # Red candle
         ),
         "side": "SHORT",
         "atr_mult": {"sl": 0.7, "tp": [0.5, 0.8, 1.2]}
     },
     
-    # MACD - Standard momentum scalping
+    # MACD - Simplified momentum 
     {
-        "name": "MACD Bull Cross",
+        "name": "MACD Long",
         "condition": lambda df: (
-            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-1] > 0 and
-            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-2] <= 0
+            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-1] > 0 and  # MACD positive
+            df['close'].iloc[-1] > df['close'].iloc[-3]  # Price higher than 3 candles ago
         ),
         "side": "LONG",
         "atr_mult": {"sl": 0.9, "tp": [0.7, 1.1, 1.6]}
     },
     {
-        "name": "MACD Bear Cross",
+        "name": "MACD Short",
         "condition": lambda df: (
-            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-1] < 0 and
-            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-2] >= 0
+            MACD(df['close'], window_fast=12, window_slow=26).macd_diff().iloc[-1] < 0 and  # MACD negative
+            df['close'].iloc[-1] < df['close'].iloc[-3]  # Price lower than 3 candles ago
         ),
         "side": "SHORT",
         "atr_mult": {"sl": 0.9, "tp": [0.7, 1.1, 1.6]}
     },
     
-    # Bollinger Bands - Simple breakout/breakdown only
+    # Price Action - Simple momentum scalping
     {
-        "name": "BB Breakout Long",
+        "name": "Momentum Long",
         "condition": lambda df: (
-            df['close'].iloc[-1] > BollingerBands(df['close'], window=20, window_dev=2).bollinger_hband().iloc[-1] and
-            df['close'].iloc[-2] <= BollingerBands(df['close'], window=20, window_dev=2).bollinger_hband().iloc[-2]
+            df['close'].iloc[-1] > df['close'].iloc[-2] and  # Current > Previous
+            df['close'].iloc[-1] > df['open'].iloc[-1] and   # Green candle
+            df['volume'].iloc[-1] > df['volume'].rolling(5).mean().iloc[-1]  # Higher volume
         ),
         "side": "LONG",
-        "atr_mult": {"sl": 1.0, "tp": [0.8, 1.3, 2.0]}
+        "atr_mult": {"sl": 0.8, "tp": [0.6, 1.0, 1.4]}
     },
     {
-        "name": "BB Breakdown Short",
+        "name": "Momentum Short",
         "condition": lambda df: (
-            df['close'].iloc[-1] < BollingerBands(df['close'], window=20, window_dev=2).bollinger_lband().iloc[-1] and
-            df['close'].iloc[-2] >= BollingerBands(df['close'], window=20, window_dev=2).bollinger_lband().iloc[-2]
+            df['close'].iloc[-1] < df['close'].iloc[-2] and  # Current < Previous
+            df['close'].iloc[-1] < df['open'].iloc[-1] and   # Red candle
+            df['volume'].iloc[-1] > df['volume'].rolling(5).mean().iloc[-1]  # Higher volume
         ),
         "side": "SHORT",
-        "atr_mult": {"sl": 1.0, "tp": [0.8, 1.3, 2.0]}
+        "atr_mult": {"sl": 0.8, "tp": [0.6, 1.0, 1.4]}
     }
 ]
 

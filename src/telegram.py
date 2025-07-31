@@ -74,7 +74,7 @@ class TelegramBot:
             f"   Volatility: NORMAL\n"
             f"   ATR: ${signal.get('atr_value', 0):.6f}\n\n"
             f"🎪 Strategy: {signal['strategy'].upper().replace(' ', '_')}\n"
-            f"🔍 Signal ID: {signal['symbol'][:3]}{signal['slno']:03d}\n"
+            f"🔍 Signal ID: {signal['symbol'][:3]}{signal['slno']}\n"
             f"💡 {level} SIGNAL - {'High' if level == 'HIGH' else 'Acceptable'} risk/reward\n"
             f"⏰ Time: {time.strftime('%H:%M:%S')}\n\n"
             f"🤖 100% LOGICAL ANALYSIS\n"

@@ -13,17 +13,17 @@ def is_valid_signal(signal, confidence_threshold):
     if signal['momentum'] < 15 or signal['momentum'] > 90:
         return False
     
-    # Additional validation for scalping
+    # Additional validation for scalping - more lenient for crypto volatility
     # Ensure reasonable SL distance (not too tight, not too wide)
     sl_distance = abs(signal['entry'] - signal['sl'])
     entry_pct = (sl_distance / signal['entry']) * 100
-    if entry_pct < 0.2 or entry_pct > 3.0:  # 0.2% to 3% SL distance for scalping
+    if entry_pct < 0.05 or entry_pct > 5.0:  # 0.05% to 5% SL distance for crypto scalping
         return False
     
     # Ensure first TP is achievable for scalping
     first_tp_distance = abs(signal['tp'][0] - signal['entry'])
     tp_pct = (first_tp_distance / signal['entry']) * 100
-    if tp_pct < 0.15 or tp_pct > 2.0:  # 0.15% to 2% first TP for scalping
+    if tp_pct < 0.03 or tp_pct > 3.0:  # 0.03% to 3% first TP for crypto scalping
         return False
     
     # Ensure all TPs are in correct direction
