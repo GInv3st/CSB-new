@@ -129,9 +129,7 @@ async def main():
                 await tg.send_signal(signal)
                 signal_cache.add(signal)
                 trade_cache.add(signal)  # Add to active trades
-        else:
-            # This should never happen now since we force signals
-            await tg._send(f"⚠️ Bot Status ({TIMEFRAME_FILTER or 'ALL'}): No signals generated at {time.strftime('%H:%M UTC')}")
+        # No status messages when no signals - only logical signals when strategies trigger
             
         open_trades = trade_cache.get_all()
         print(f"📊 Monitoring {len(open_trades)} active trades...")
@@ -166,3 +164,7 @@ async def main():
         await tg.send_error(f"Bot error ({TIMEFRAME_FILTER or 'ALL'}):\n{err}")
         logging.error(f"Bot error:\n{err}")
         print(f"❌ Error: {err}")
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
