@@ -29,7 +29,6 @@ def build_signal(symbol, tf, df, strat, sl_mult, tp_mult, slno):
             'tp': [round(x, 2) for x in tp],
             'tp_multipliers': tp_mult,
             'atr_value': round(atr, 6),  # Include ATR value for analysis
-            'atr_value': round(atr, 6),  # Include ATR value for analysis
             'strategy': strat['strategy'],
             'opened_at': int(time.time()),
             'entry_candle': len(df) - 1

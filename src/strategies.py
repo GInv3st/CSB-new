@@ -11,8 +11,7 @@ STRATEGY_LIST = [
     {
         "name": "RSI Oversold Scalp",
         "condition": lambda df: (
-            RSIIndicator(df['close'], window=14).rsi().iloc[-1] < 30 and
-            df['close'].iloc[-1] > df['open'].iloc[-1]
+            RSIIndicator(df['close'], window=14).rsi().iloc[-1] < 35  # More sensitive
         ),
         "side": "LONG",
         "atr_mult": {"sl": 1.0, "tp": [0.8, 1.2, 1.8]}
@@ -20,8 +19,7 @@ STRATEGY_LIST = [
     {
         "name": "RSI Overbought Scalp",
         "condition": lambda df: (
-            RSIIndicator(df['close'], window=14).rsi().iloc[-1] > 70 and
-            df['close'].iloc[-1] < df['open'].iloc[-1]
+            RSIIndicator(df['close'], window=14).rsi().iloc[-1] > 65  # More sensitive
         ),
         "side": "SHORT",
         "atr_mult": {"sl": 1.0, "tp": [0.8, 1.2, 1.8]}

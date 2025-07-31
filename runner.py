@@ -118,71 +118,10 @@ async def main():
         signals = [s for s in signals if not signal_cache.is_duplicate(s)]
         signals = sorted(signals, key=lambda x: x['confidence'], reverse=True)[:MAX_SIGNALS_PER_RUN]
 
-        # FORCE SIGNALS: If no strategies trigger, create forced scalping signals
+        # Only send signals when REAL strategies trigger - no forced signals
         if len(signals) == 0:
-            print("🚨 NO STRATEGIES TRIGGERED - FORCING SCALPING SIGNALS")
-            forced_signals = []
-            
-            for symbol in SYMBOLS:
-                for tf in TIMEFRAMES:
-                    df = data.get((symbol, tf))
-                    if df is None or len(df) < 50:
-                        continue
-                        
-                    print(f"🔧 Forcing signal for {symbol} {tf}")
-                    
-                    # Calculate price movement for direction
-                    price = df['close'].iloc[-1]
-                    price_change = ((df['close'].iloc[-1] - df['close'].iloc[-5]) / df['close'].iloc[-5]) * 100
-                    
-                    # Force direction based on recent movement
-                    if price_change > 0.01:  # Any upward movement
-                        side = "LONG"
-                        strategy_name = "Forced Scalp Long"
-                    else:
-                        side = "SHORT" 
-                        strategy_name = "Forced Scalp Short"
-                    
-                    # Calculate simple levels using ATR
-                    atr = df['high'].rolling(14).max() - df['low'].rolling(14).min()
-                    atr_value = atr.iloc[-1] * 0.01  # 1% ATR
-                    
-                    entry = price
-                    if side == "LONG":
-                        sl = entry - atr_value
-                        tp = [entry + (atr_value * 0.8), entry + (atr_value * 1.2)]
-                    else:
-                        sl = entry + atr_value
-                        tp = [entry - (atr_value * 0.8), entry - (atr_value * 1.2)]
-                    
-                    # Create forced signal
-                    forced_signal = {
-                        'symbol': symbol,
-                        'timeframe': tf,
-                        'side': side,
-                        'strategy': strategy_name,
-                        'entry': entry,
-                        'sl': sl,
-                        'tp': tp,
-                        'sl_multiplier': 1.0,
-                        'tp_multipliers': [0.8, 1.2],
-                        'confidence': 0.75,  # Fixed confidence for forced signals
-                        'momentum': 50.0,
-                        'momentum_cat': 'ACTIVE',
-                        'slno': strategy_history.next_slno(),
-                        'opened_at': int(time.time())
-                    }
-                    
-                    # Check for duplicates
-                    if not signal_cache.is_duplicate(forced_signal):
-                        forced_signals.append(forced_signal)
-                        print(f"✅ Created forced {side} signal for {symbol}")
-                    else:
-                        print(f"🔄 Forced signal for {symbol} is duplicate")
-            
-            if forced_signals:
-                signals = forced_signals[:3]  # Limit to 3 forced signals
-                print(f"🚨 FORCING {len(signals)} SIGNALS - Bot will send these to Telegram")
+            print("📊 No strategies triggered this run - market conditions not met")
+            # No status messages - only send when real signals are generated
 
         print(f"📤 Sending {len(signals)} signals...")
         if len(signals) > 0:

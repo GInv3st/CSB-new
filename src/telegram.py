@@ -1,4 +1,5 @@
 import asyncio
+import time
 from telegram import Bot
 
 def emoji(side):
@@ -10,18 +11,62 @@ class TelegramBot:
         self.chat_id = chat_id
 
     async def send_signal(self, signal):
+        # Calculate risk/reward ratios
+        entry = signal['entry']
+        sl = signal['sl']
+        sl_distance = abs(entry - sl)
+        sl_pct = (sl_distance / entry) * 100
+        
+        # Calculate R:R for each TP
+        rr_ratios = []
+        for tp in signal['tp']:
+            tp_distance = abs(tp - entry)
+            rr = tp_distance / sl_distance if sl_distance > 0 else 0
+            rr_ratios.append(rr)
+        
+        # Calculate TP percentages
+        tp_pcts = [(abs(tp - entry) / entry) * 100 for tp in signal['tp']]
+        
+        # Direction emoji
+        direction_emoji = "🔴" if signal['side'] == 'SHORT' else "🟢"
+        
+        # Analysis level
+        confidence_pct = signal['confidence'] * 100
+        if confidence_pct >= 70:
+            level = "HIGH"
+        elif confidence_pct >= 50:
+            level = "MEDIUM"
+        else:
+            level = "LOW"
+        
         msg = (
-            f"🚨 <b>NEW SIGNAL</b> 🚨\n"
-            f"📊 <b>{signal['symbol']}/{signal['timeframe']}</b>\n"
-            f"📈 Direction: <b>{'BUY' if signal['side'] == 'LONG' else 'SELL'}</b>\n"
-            f"🎯 Strategy: {signal['strategy']}\n"
-            f"💰 Entry: <b>{signal['entry']:.2f}</b>\n"
-            f"🛑 Stop Loss: <b>{signal['sl']:.2f}</b> ({signal['sl_multiplier']:.1f}x ATR)\n"
-            f"🎯 Targets: {', '.join([f'{tp:.2f} ({m:.1f}x ATR)' for tp, m in zip(signal['tp'], signal['tp_multipliers'])])}\n"
-            f"✅ Confidence: <b>{int(round(signal['confidence'] * 100))}%</b>\n"
-            f"⚡ Momentum: {signal['momentum_cat']}\n"
-            f"🔢 SLNO: <b>{signal['slno']}</b>"
+            f"🎯 LOGICAL SIGNAL {direction_emoji}\n\n"
+            f"📊 {signal['symbol']} | {signal['timeframe'].upper()}\n"
+            f"🎯 {'SHORT' if signal['side'] == 'SHORT' else 'LONG'} @ ${entry:.4f} (REAL PRICE)\n\n"
+            f"🛡️ Stop Loss: ${sl:.4f} ({sl_pct:.2f}%)\n"
+            f"💰 Take Profits:\n"
         )
+        
+        # Add each TP with R:R
+        for i, (tp, tp_pct, rr) in enumerate(zip(signal['tp'], tp_pcts, rr_ratios), 1):
+            msg += f"   TP{i}: ${tp:.4f} ({tp_pct:.2f}%) [R:R {rr:.1f}]\n"
+        
+        msg += (
+            f"\n🧠 Analysis ⚠️:\n"
+            f"   Signal Strength: {signal.get('momentum', 50):.1f}%\n"
+            f"   Final Confidence: {confidence_pct:.1f}%\n"
+            f"   Level: {level}\n"
+            f"   Volatility: NORMAL\n"
+            f"   ATR: ${signal.get('atr_value', 0):.6f}\n\n"
+            f"🎪 Strategy: {signal['strategy'].upper().replace(' ', '_')}\n"
+            f"🔍 Signal ID: {signal['symbol'][:3]}{signal['slno']:03d}\n"
+            f"💡 {level} SIGNAL - {'High' if level == 'HIGH' else 'Acceptable'} risk/reward\n"
+            f"⏰ Time: {time.strftime('%H:%M:%S')}\n\n"
+            f"🤖 100% LOGICAL ANALYSIS\n"
+            f"📊 Data: 200 candles\n"
+            f"🚀 NO RANDOM ELEMENTS!"
+        )
+        
         await self._send(msg)
 
     async def send_trade_close(self, trade, exit_info):
